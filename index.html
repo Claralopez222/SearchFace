@@ -1,58 +1,67 @@
 <!DOCTYPE html>
-<html lang="pt-BR">
+<html lang="pt-BR" data-theme="light">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <meta name="description" content="Gera links de busca otimizados para encontrar grupos no Facebook por nicho." />
   <title>Buscador de Grupos do Facebook por Nicho</title>
-
-  <!-- Fonte -->
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet" />
-
-  <!-- Estilos -->
   <link rel="stylesheet" href="style.css" />
 </head>
 <body>
 <div class="page">
 
-  <!-- ─── Hero ──────────────────────────────────────────────────────────────── -->
+  <!-- ─── Hero ── -->
   <header class="hero">
-    <div class="hero-icon" aria-hidden="true">
-      <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-        <path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/>
-      </svg>
+    <div class="hero-top-row">
+      <div class="hero-icon" aria-hidden="true">
+        <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+          <path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/>
+        </svg>
+      </div>
+      <button class="theme-toggle" onclick="toggleTheme()" aria-label="Alternar tema" title="Alternar dark/light mode">
+        <span class="theme-icon-light">☀️</span>
+        <span class="theme-icon-dark">🌙</span>
+      </button>
     </div>
     <h1>Buscador de grupos por nicho</h1>
     <p>Gera links de busca otimizados para encontrar grupos no Facebook.</p>
+    <div class="hero-stats" id="hero-stats" style="display:none">
+      <span id="stat-searches">0 buscas realizadas</span>
+      <span class="stat-sep">·</span>
+      <span id="stat-opened">0 grupos abertos</span>
+    </div>
   </header>
 
-  <!-- ─── Card principal ────────────────────────────────────────────────────── -->
   <main>
+    <!-- ─── Card principal ── -->
     <div class="card">
-
       <span class="label" id="niches-label">Nichos populares</span>
-      <!-- Preenchido por app.js via renderNiches() -->
       <div class="niches" id="niches-container" role="group" aria-labelledby="niches-label"></div>
 
       <div class="divider" role="separator"></div>
 
       <label class="label" for="query">Ou digite seu nicho</label>
       <div class="search-row">
-        <input
-          type="search"
-          id="query"
-          name="query"
-          placeholder="Ex: costura artesanal, academia, fotografia..."
-          autocomplete="off"
-          maxlength="120"
-          aria-label="Digite o nicho para buscar grupos"
-        />
+        <div class="input-wrapper">
+          <input
+            type="search"
+            id="query"
+            name="query"
+            placeholder="Ex: costura artesanal, academia, fotografia..."
+            autocomplete="off"
+            maxlength="120"
+            aria-label="Digite o nicho para buscar grupos"
+            aria-autocomplete="list"
+            aria-controls="autocomplete-list"
+          />
+          <ul class="autocomplete-list" id="autocomplete-list" role="listbox" aria-label="Sugestões"></ul>
+        </div>
         <button class="btn-primary" onclick="generate()" aria-label="Gerar links de busca">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-            <circle cx="11" cy="11" r="8"/>
-            <path d="m21 21-4.35-4.35"/>
+            <circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/>
           </svg>
           Buscar
         </button>
@@ -65,39 +74,97 @@
         <button class="filter-btn active" onclick="toggleFilter(this, 'publico')" aria-pressed="true">Público</button>
         <button class="filter-btn active" onclick="toggleFilter(this, 'privado')" aria-pressed="true">Privado</button>
       </div>
-
     </div>
 
-    <!-- ─── Resultados ──────────────────────────────────────────────────────── -->
+    <!-- ─── Histórico de buscas ── -->
+    <div id="history-section" style="display:none">
+      <div class="section-header">
+        <span class="label" style="margin:0">Buscas recentes</span>
+        <button class="btn-ghost" onclick="clearHistory()">Limpar</button>
+      </div>
+      <div class="history-tags" id="history-tags"></div>
+    </div>
+
+    <!-- ─── Resultados ── -->
     <section id="results-section" aria-live="polite" aria-label="Resultados" style="display:none">
       <div class="results-header">
         <span class="results-count" id="results-count" aria-atomic="true"></span>
+        <div class="results-actions">
+          <button class="btn-ghost" onclick="copyAllLinks()" id="btn-copy-all" title="Copiar todos os links do Facebook">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="14" height="14" x="8" y="8" rx="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></svg>
+            Copiar todos
+          </button>
+          <button class="btn-ghost" onclick="exportLinks()" title="Exportar como .txt">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+            Exportar .txt
+          </button>
+          <button class="btn-ghost" onclick="shareSearch()" title="Compartilhar busca">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>
+            Compartilhar
+          </button>
+        </div>
       </div>
       <div id="results"></div>
-
-      <!-- ─── Produtos afiliados (preenchido por app.js) ──────────────────── -->
       <div id="produtos-section" style="display:none"></div>
     </section>
 
-    <!-- ─── Estado vazio ────────────────────────────────────────────────────── -->
+    <!-- ─── Estado vazio ── -->
     <div id="empty-state" class="empty" role="status" style="display:none">
       <svg viewBox="0 0 24 24" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-        <circle cx="11" cy="11" r="8"/>
-        <path d="m21 21-4.35-4.35"/>
+        <circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/>
       </svg>
       <p>Selecione pelo menos um tipo de grupo e escreva seu nicho.</p>
     </div>
 
+    <!-- ─── Cadastro de produtos afiliados ── -->
+    <div class="card" id="add-produto-card" style="margin-top:1.5rem">
+      <div class="section-header" style="margin-bottom:1rem">
+        <span class="label" style="margin:0">➕ Adicionar produto afiliado</span>
+        <button class="btn-ghost" onclick="toggleAddProduto()" id="btn-toggle-add">Expandir</button>
+      </div>
+      <div id="add-produto-form" style="display:none">
+        <div class="form-grid">
+          <div class="form-field">
+            <label class="field-label" for="f-nome">Nome do produto</label>
+            <input type="text" id="f-nome" class="field-input" placeholder="Ex: Curso de Marketing Digital" maxlength="100" />
+          </div>
+          <div class="form-field">
+            <label class="field-label" for="f-preco">Preço</label>
+            <input type="text" id="f-preco" class="field-input" placeholder="Ex: R$ 97,00" maxlength="20" />
+          </div>
+          <div class="form-field">
+            <label class="field-label" for="f-comissao">Comissão</label>
+            <input type="text" id="f-comissao" class="field-input" placeholder="Ex: 50%" maxlength="10" />
+          </div>
+          <div class="form-field">
+            <label class="field-label" for="f-nichos">Nichos (separados por vírgula)</label>
+            <input type="text" id="f-nichos" class="field-input" placeholder="Ex: futebol, esporte, copa" maxlength="200" />
+          </div>
+          <div class="form-field form-field--full">
+            <label class="field-label" for="f-desc">Descrição curta</label>
+            <input type="text" id="f-desc" class="field-input" placeholder="Ex: Produto em alta, ótimo para grupos de futebol" maxlength="200" />
+          </div>
+          <div class="form-field form-field--full">
+            <label class="field-label" for="f-link">Link de afiliado</label>
+            <input type="url" id="f-link" class="field-input" placeholder="https://pay.cakto.com.br/..." maxlength="500" />
+          </div>
+        </div>
+        <div class="form-actions">
+          <button class="btn-primary" onclick="addProduto()">Salvar produto</button>
+          <span class="form-feedback" id="form-feedback"></span>
+        </div>
+        <div id="produtos-salvos-lista" style="margin-top:1rem"></div>
+      </div>
+    </div>
+
   </main>
 
-  <!-- ─── Footer ────────────────────────────────────────────────────────────── -->
   <footer>
     Os links abrem a busca diretamente no Facebook &mdash; feito com ♥ e Claude
   </footer>
 
 </div>
 
-<!-- data.js antes de app.js (app depende de NICHOS, buildTerms, getIcon, getProdutosAfiliados) -->
 <script src="data.js"></script>
 <script src="app.js"></script>
 </body>
