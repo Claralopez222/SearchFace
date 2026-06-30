@@ -5,17 +5,19 @@ let currentTerms   = [];
 let currentQuery   = '';
 let openedCount    = 0;
 let searchCount    = 0;
+let generateToken  = 0; // evita que uma chamada antiga de generate() sobrescreva uma mais recente
 
 // ─── Ícones ───────────────────────────────────────────────────────────────────
 const ICON_EXTERNAL = `<svg viewBox="0 0 24 24" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>`;
 const ICON_COPY     = `<svg viewBox="0 0 24 24" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></svg>`;
 const ICON_CHECK    = `<svg viewBox="0 0 24 24" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>`;
 const ICON_TAG      = `<svg viewBox="0 0 24 24" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2H2v10l9.29 9.29a1 1 0 0 0 1.41 0l7.3-7.3a1 1 0 0 0 0-1.41L12 2Z"/><path d="M7 7h.01"/></svg>`;
-const ICON_TRASH    = `<svg viewBox="0 0 24 24" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>`;
+const ICON_TRASH    = `<svg viewBox="0 0 24 24" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>`;const ICON_TRASH    = `<svg viewBox="0 0 24 24" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>`;
+const ICON_EDIT      = `<svg viewBox="0 0 24 24" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4Z"/></svg>`;
 
 // ─── Init ─────────────────────────────────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', () => {
-  applyTheme(localStorage.getItem('theme') || 'light');
+  applyTheme(getInitialTheme());
   renderNiches();
   bindSearchInput();
   renderHistory();
@@ -23,6 +25,16 @@ document.addEventListener('DOMContentLoaded', () => {
   loadStats();
   checkShareParam();
 });
+
+// Prioridade: preferência salva pelo usuário > preferência do sistema operacional > 'light'
+function getInitialTheme() {
+  const saved = localStorage.getItem('theme');
+  if (saved === 'light' || saved === 'dark') return saved;
+
+  const prefersDark = window.matchMedia &&
+    window.matchMedia('(prefers-color-scheme: dark)').matches;
+  return prefersDark ? 'dark' : 'light';
+}
 
 // ─── Tema ─────────────────────────────────────────────────────────────────────
 function toggleTheme() {
@@ -57,6 +69,8 @@ function bindSearchInput() {
   input.addEventListener('input', () => {
     clearTimeout(debounceTimer);
     const val = input.value.trim();
+
+    toggleClearButton(val.length > 0);
 
     // Autocomplete
     if (val.length >= 1) {
@@ -96,7 +110,30 @@ function setNiche(val) {
   input.value = val;
   input.focus();
   closeAutocomplete();
+  toggleClearButton(true);
   generate();
+}
+
+function toggleClearButton(show) {
+  const btn = document.getElementById('btn-clear-search');
+  if (btn) btn.style.display = show ? 'inline-flex' : 'none';
+}
+
+// Limpa o campo de busca e volta ao estado inicial (sem resultados).
+function clearSearch() {
+  const input = document.getElementById('query');
+  input.value = '';
+  input.focus();
+  closeAutocomplete();
+  toggleClearButton(false);
+
+  document.getElementById('results-section').style.display = 'none';
+  document.getElementById('empty-state').style.display = 'none';
+  document.getElementById('results').innerHTML = '';
+  document.getElementById('produtos-section').innerHTML = '';
+
+  currentQuery = '';
+  currentTerms = [];
 }
 
 // ─── Filtros ──────────────────────────────────────────────────────────────────
@@ -136,7 +173,13 @@ function generate() {
   container.style.opacity   = '0';
   container.style.transform = 'translateY(6px)';
 
+  // Token desta chamada específica — se outra generate() rodar antes do
+  // setTimeout disparar, o token muda e esta execução antiga é descartada.
+  const myToken = ++generateToken;
+
   setTimeout(() => {
+    if (myToken !== generateToken) return; // resultado obsoleto, ignora
+
     container.innerHTML = currentTerms.map((t, i) => buildCard(t, i, icon)).join('');
 
     const prodSection = document.getElementById('produtos-section');
@@ -168,8 +211,9 @@ function generate() {
 
 // ─── Card de grupo ────────────────────────────────────────────────────────────
 function buildCard(term, index, icon) {
-  const preferred  = index % 2 === 0 ? 'publico' : 'privado';
-  const tipoKey    = activeFilters.includes(preferred) ? preferred : activeFilters[0];
+  // Usa o tipo real definido em buildTerms() ao invés de alternar por índice.
+  // Se o tipo do termo não estiver entre os filtros ativos, cai no primeiro filtro ativo disponível.
+  const tipoKey    = activeFilters.includes(term.tipo) ? term.tipo : activeFilters[0];
   const isPublic   = tipoKey === 'publico';
   const tipoLabel  = isPublic ? 'Público' : 'Privado';
   const badgeClass = isPublic ? 'badge-pub' : 'badge-pri';
@@ -354,6 +398,8 @@ function toggleAddProduto() {
   btn.textContent    = open ? 'Recolher' : 'Expandir';
 }
 
+let editingIndex = null; // null = modo "adicionar", número = modo "editando"
+
 function addProduto() {
   const nome     = document.getElementById('f-nome').value.trim();
   const preco    = document.getElementById('f-preco').value.trim();
@@ -369,6 +415,12 @@ function addProduto() {
     return;
   }
 
+  if (!isValidHttpUrl(link)) {
+    feedback.textContent = '⚠️ Link inválido. Use uma URL completa (ex: https://...).';
+    feedback.className   = 'form-feedback error';
+    return;
+  }
+
   const produto = {
     name: nome,
     price: preco || '—',
@@ -379,18 +431,55 @@ function addProduto() {
   };
 
   const saved = getSavedProdutos();
-  saved.push(produto);
+
+  if (editingIndex !== null) {
+    saved[editingIndex] = produto;
+    feedback.textContent = '✅ Produto atualizado!';
+  } else {
+    saved.push(produto);
+    feedback.textContent = '✅ Produto salvo!';
+  }
+
   localStorage.setItem('fb_produtos', JSON.stringify(saved));
+  feedback.className = 'form-feedback success';
 
-  feedback.textContent = '✅ Produto salvo!';
-  feedback.className   = 'form-feedback success';
+  resetProdutoForm();
+  setTimeout(() => { feedback.textContent = ''; }, 3000);
+  renderProdutosSalvos();
+}
 
+// Preenche o formulário com os dados do produto para edição.
+function editProduto(index) {
+  const saved   = getSavedProdutos();
+  const produto = saved[index];
+  if (!produto) return;
+
+  editingIndex = index;
+
+  document.getElementById('f-nome').value     = produto.name || '';
+  document.getElementById('f-preco').value    = produto.price === '—' ? '' : (produto.price || '');
+  document.getElementById('f-comissao').value = produto.commission === '—' ? '' : (produto.commission || '');
+  document.getElementById('f-nichos').value   = (produto.nichos || []).join(', ');
+  document.getElementById('f-desc').value     = produto.desc || '';
+  document.getElementById('f-link').value     = produto.link || '';
+
+  // Garante que o formulário esteja visível e com o botão indicando "atualizar"
+  document.getElementById('add-produto-form').style.display = 'block';
+  document.getElementById('btn-toggle-add').textContent = 'Recolher';
+  document.getElementById('btn-salvar-produto').textContent = 'Atualizar produto';
+  document.getElementById('btn-cancelar-edicao').style.display = 'inline-flex';
+
+  document.getElementById('add-produto-card').scrollIntoView({ behavior: 'smooth', block: 'center' });
+}
+
+// Limpa o formulário e volta ao modo "adicionar".
+function resetProdutoForm() {
+  editingIndex = null;
   ['f-nome','f-preco','f-comissao','f-nichos','f-desc','f-link'].forEach(id => {
     document.getElementById(id).value = '';
   });
-
-  setTimeout(() => { feedback.textContent = ''; }, 3000);
-  renderProdutosSalvos();
+  document.getElementById('btn-salvar-produto').textContent = 'Salvar produto';
+  document.getElementById('btn-cancelar-edicao').style.display = 'none';
 }
 
 function getSavedProdutos() {
@@ -402,6 +491,10 @@ function deleteProduto(index) {
   const saved = getSavedProdutos();
   saved.splice(index, 1);
   localStorage.setItem('fb_produtos', JSON.stringify(saved));
+
+  // Se o item deletado era o que estava sendo editado, sai do modo edição.
+  if (editingIndex === index) resetProdutoForm();
+
   renderProdutosSalvos();
 }
 
@@ -421,15 +514,21 @@ function renderProdutosSalvos() {
             <span class="saved-produto-nome">${escapeHtml(p.name)}</span>
             <span class="saved-produto-nichos">${escapeHtml(p.nichos.join(', '))}</span>
           </div>
-          <button class="copy-btn" onclick="deleteProduto(${i})" title="Remover">
-            ${ICON_TRASH}
-          </button>
+          <div style="display:flex;gap:6px;flex-shrink:0">
+            <button class="copy-btn" onclick="editProduto(${i})" title="Editar">
+              ${ICON_EDIT}
+            </button>
+            <button class="copy-btn" onclick="deleteProduto(${i})" title="Remover">
+              ${ICON_TRASH}
+            </button>
+          </div>
         </div>
       `).join('')}
     </div>`;
 }
 
-// ─── getProdutosAfiliados — combina fixos + salvos ───────────────────────────
+// ─── getProdutosAfiliados — ÚNICA definição (combina fixos + salvos) ────────
+// Atenção: não duplicar esta função em data.js. Esta é a fonte de verdade.
 function getProdutosAfiliados(raw) {
   const query = raw.toLowerCase();
   const todos = [...PRODUTOS_AFILIADOS, ...getSavedProdutos()];
@@ -466,12 +565,35 @@ function showToast(msg) {
 }
 
 // ─── Utilitários ──────────────────────────────────────────────────────────────
+function isValidHttpUrl(str) {
+  try {
+    const url = new URL(str);
+    return url.protocol === 'http:' || url.protocol === 'https:';
+  } catch {
+    return false;
+  }
+}
+
 function sanitize(str) {
-  return str.trim().replace(/[<>"'&]/g, '').slice(0, 120);
+  return str.trim().replace(/\s+/g, ' ').slice(0, 120);
 }
+
 function escapeHtml(str) {
-  return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  return String(str)
+    .replace(/&/g,'&amp;')
+    .replace(/</g,'&lt;')
+    .replace(/>/g,'&gt;')
+    .replace(/"/g,'&quot;')
+    .replace(/'/g,'&#39;');
 }
+
+// Usado dentro de onclick="fn('...')" — precisa escapar backslash ANTES das aspas
+// (senão um valor terminando em \ quebra o escape da aspa seguinte), além de
+// aspas simples, quebras de linha e a sequência </script> por segurança extra.
 function escapeAttr(str) {
-  return String(str).replace(/'/g,"\\'");
+  return String(str)
+    .replace(/\\/g, '\\\\')
+    .replace(/'/g, "\\'")
+    .replace(/\r?\n/g, '\\n')
+    .replace(/<\/script/gi, '<\\/script');
 }

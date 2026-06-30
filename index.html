@@ -59,6 +59,10 @@
           />
           <ul class="autocomplete-list" id="autocomplete-list" role="listbox" aria-label="Sugestões"></ul>
         </div>
+        <button class="btn-ghost" id="btn-clear-search" onclick="clearSearch()" aria-label="Limpar busca atual" title="Limpar busca" style="display:none">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+          Limpar
+        </button>
         <button class="btn-primary" onclick="generate()" aria-label="Gerar links de busca">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
             <circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/>
@@ -150,7 +154,8 @@
           </div>
         </div>
         <div class="form-actions">
-          <button class="btn-primary" onclick="addProduto()">Salvar produto</button>
+          <button class="btn-primary" id="btn-salvar-produto" onclick="addProduto()">Salvar produto</button>
+          <button class="btn-ghost" id="btn-cancelar-edicao" onclick="resetProdutoForm()" style="display:none">Cancelar edição</button>
           <span class="form-feedback" id="form-feedback"></span>
         </div>
         <div id="produtos-salvos-lista" style="margin-top:1rem"></div>

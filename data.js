@@ -39,13 +39,7 @@ const PRODUTOS_AFILIADOS = [
   // Adicione mais produtos aqui seguindo o mesmo padrão
 ];
 
-// ─── Retorna produtos afiliados relevantes para o nicho digitado ──────────────
-function getProdutosAfiliados(raw) {
-  const query = raw.toLowerCase();
-  return PRODUTOS_AFILIADOS.filter(({ nichos }) =>
-    nichos.some(n => query.includes(n) || n.includes(query))
-  );
-}
+// (função removida daqui — agora vive em app.js, combinando fixos + salvos)
 
 // ─── Termos de busca por nicho ───────────────────────────────────────────────
 function buildTerms(raw) {
