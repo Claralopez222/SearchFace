@@ -443,6 +443,18 @@ body {
   flex-shrink: 0;
 }
 
+/* ─── Hint dos cards ─────────────────────────────────────────────────────────── */
+.result-hint {
+  font-size: 11px;
+  color: var(--text-muted);
+  margin-top: 7px;
+  line-height: 1.5;
+}
+
+.result-hint strong {
+  color: var(--text-secondary);
+}
+
 /* ─── Estado vazio ───────────────────────────────────────────────────────────── */
 .empty {
   text-align: center;

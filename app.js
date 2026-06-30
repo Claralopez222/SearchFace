@@ -109,8 +109,7 @@ function buildCard(term, index, icon) {
   const isPublic   = tipoKey === 'publico';
   const tipoLabel  = isPublic ? 'Público' : 'Privado';
   const badgeClass = isPublic ? 'badge-pub' : 'badge-pri';
-  const url = `https://www.facebook.com/groups/search/groups_home?q=${encodeURIComponent(term.query)}`;const FACEBOOK_FILTER = 'eyJncm91cHNfZmlsdGVyIjoie1wibmFtZVwiOlwiZ3JvdXBzXCJ9In0%3D';
-const url = `https://www.facebook.com/groups/search/?q=${encodeURIComponent(term.query)}&filters=${FACEBOOK_FILTER}`;
+  const url        = `https://www.facebook.com/search/groups/?q=${encodeURIComponent(term.query)}`;
   const queryId    = `query-${index}`;
 
   return `
@@ -131,6 +130,7 @@ const url = `https://www.facebook.com/groups/search/?q=${encodeURIComponent(term
         <a class="result-link" href="${url}" target="_blank" rel="noopener noreferrer" aria-label="Abrir busca no Facebook para ${escapeAttr(term.label)}">
           ${ICON_EXTERNAL} Abrir no Facebook
         </a>
+        <p class="result-hint">💡 Se aparecer resultado geral, clique em <strong>Grupos</strong> no menu lateral</p>
       </div>
     </div>`;
 }
