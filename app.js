@@ -7,6 +7,83 @@ let openedCount    = 0;
 let searchCount    = 0;
 let generateToken  = 0; // evita que uma chamada antiga de generate() sobrescreva uma mais recente
 
+// ─── Storage namespace + versionamento de schema ─────────────────────────────
+// Todas as chaves do localStorage usam este prefixo para evitar colisão com
+// outros scripts/projetos rodando no mesmo domínio.
+const STORAGE_PREFIX = 'buscadorGrupos:';
+const SCHEMA_VERSION  = 1;
+const MAX_SAVED_PRODUTOS = 50;
+
+const KEYS = {
+  theme:        STORAGE_PREFIX + 'theme',
+  history:      STORAGE_PREFIX + 'history',
+  searchCount:  STORAGE_PREFIX + 'searchCount',
+  openedCount:  STORAGE_PREFIX + 'openedCount',
+  produtos:     STORAGE_PREFIX + 'produtos',
+  schemaVer:    STORAGE_PREFIX + 'schemaVersion',
+};
+
+// Chaves antigas (sem namespace) usadas em versões anteriores — migradas uma vez.
+const LEGACY_KEYS = {
+  theme:       'theme',
+  history:     'fb_search_history',
+  searchCount: 'fb_search_count',
+  openedCount: 'fb_opened_count',
+  produtos:    'fb_produtos',
+};
+
+// Migra dados de chaves antigas para o novo namespace, uma única vez,
+// e marca a versão do schema. Roda no início do DOMContentLoaded.
+function migrateStorage() {
+  const alreadyMigrated = localStorage.getItem(KEYS.schemaVer);
+  if (alreadyMigrated) return;
+
+  Object.keys(LEGACY_KEYS).forEach(name => {
+    const oldVal = localStorage.getItem(LEGACY_KEYS[name]);
+    if (oldVal !== null && localStorage.getItem(KEYS[name]) === null) {
+      localStorage.setItem(KEYS[name], oldVal);
+      localStorage.removeItem(LEGACY_KEYS[name]);
+    }
+  });
+
+  localStorage.setItem(KEYS.schemaVer, String(SCHEMA_VERSION));
+}
+
+// Lê e valida um array de JSON do localStorage, retornando [] em caso de
+// dado ausente, corrompido ou com formato inesperado (não confia apenas no try/catch de parse).
+function readJsonArray(key) {
+  try {
+    const parsed = JSON.parse(localStorage.getItem(key) || '[]');
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
+
+// Garante que um produto salvo tenha todos os campos esperados, no formato
+// esperado, preenchendo valores ausentes com defaults seguros. Protege contra
+// dados antigos/corrompidos quebrarem a renderização (ex: nichos não-array).
+function normalizeProduto(p) {
+  if (!p || typeof p !== 'object') return null;
+  const name = typeof p.name === 'string' ? p.name.trim() : '';
+  const link = typeof p.link === 'string' ? p.link.trim() : '';
+  if (!name || !link) return null; // produto inválido, descarta
+
+  let nichos = p.nichos;
+  if (typeof nichos === 'string') nichos = nichos.split(',');
+  if (!Array.isArray(nichos)) nichos = [];
+  nichos = nichos.map(n => String(n).trim().toLowerCase()).filter(Boolean);
+
+  return {
+    name,
+    link,
+    price:      typeof p.price === 'string' && p.price ? p.price : '—',
+    commission: typeof p.commission === 'string' && p.commission ? p.commission : '—',
+    desc:       typeof p.desc === 'string' ? p.desc : '',
+    nichos,
+  };
+}
+
 // ─── Ícones ───────────────────────────────────────────────────────────────────
 const ICON_EXTERNAL = `<svg viewBox="0 0 24 24" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>`;
 const ICON_COPY     = `<svg viewBox="0 0 24 24" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></svg>`;
@@ -17,6 +94,7 @@ const ICON_EDIT      = `<svg viewBox="0 0 24 24" stroke-width="2" stroke-linecap
 
 // ─── Init ─────────────────────────────────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', () => {
+  migrateStorage(); // precisa rodar antes de qualquer leitura de localStorage
   applyTheme(getInitialTheme());
   renderNiches();
   bindSearchInput();
@@ -28,7 +106,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
 // Prioridade: preferência salva pelo usuário > preferência do sistema operacional > 'light'
 function getInitialTheme() {
-  const saved = localStorage.getItem('theme');
+  const saved = localStorage.getItem(KEYS.theme);
   if (saved === 'light' || saved === 'dark') return saved;
 
   const prefersDark = window.matchMedia &&
@@ -41,7 +119,7 @@ function toggleTheme() {
   const current = document.documentElement.getAttribute('data-theme');
   const next = current === 'dark' ? 'light' : 'dark';
   applyTheme(next);
-  localStorage.setItem('theme', next);
+  localStorage.setItem(KEYS.theme, next);
 }
 
 function applyTheme(theme) {
@@ -57,12 +135,38 @@ function renderNiches() {
 }
 
 // ─── Autocomplete ─────────────────────────────────────────────────────────────
+let autocompleteActiveIndex = -1; // índice da opção atualmente destacada via teclado
+
 function bindSearchInput() {
   const input = document.getElementById('query');
   const list  = document.getElementById('autocomplete-list');
 
   input.addEventListener('keydown', (e) => {
-    if (e.key === 'Enter') { clearTimeout(debounceTimer); closeAutocomplete(); generate(); }
+    const isOpen = list.style.display === 'block';
+    const items  = list.querySelectorAll('li');
+
+    if (isOpen && (e.key === 'ArrowDown' || e.key === 'ArrowUp')) {
+      e.preventDefault();
+      if (items.length === 0) return;
+      autocompleteActiveIndex = e.key === 'ArrowDown'
+        ? (autocompleteActiveIndex + 1) % items.length
+        : (autocompleteActiveIndex - 1 + items.length) % items.length;
+      updateAutocompleteHighlight(items);
+      return;
+    }
+
+    if (e.key === 'Enter') {
+      clearTimeout(debounceTimer);
+      // Se uma opção estiver destacada via teclado, seleciona ela em vez de buscar o texto digitado
+      if (isOpen && autocompleteActiveIndex >= 0 && items[autocompleteActiveIndex]) {
+        items[autocompleteActiveIndex].click();
+        return;
+      }
+      closeAutocomplete();
+      generate();
+      return;
+    }
+
     if (e.key === 'Escape') closeAutocomplete();
   });
 
@@ -79,6 +183,7 @@ function bindSearchInput() {
         .slice(0, 6);
 
       if (suggestions.length > 0) {
+        autocompleteActiveIndex = -1;
         list.innerHTML = suggestions.map(s =>
           `<li role="option" onclick="setNiche('${escapeAttr(s.query)}')">${escapeHtml(s.label)}</li>`
         ).join('');
@@ -101,8 +206,19 @@ function bindSearchInput() {
   });
 }
 
+function updateAutocompleteHighlight(items) {
+  items.forEach((li, i) => {
+    li.classList.toggle('active', i === autocompleteActiveIndex);
+    li.setAttribute('aria-selected', i === autocompleteActiveIndex ? 'true' : 'false');
+  });
+  if (items[autocompleteActiveIndex]) {
+    items[autocompleteActiveIndex].scrollIntoView({ block: 'nearest' });
+  }
+}
+
 function closeAutocomplete() {
   document.getElementById('autocomplete-list').style.display = 'none';
+  autocompleteActiveIndex = -1;
 }
 
 function setNiche(val) {
@@ -247,6 +363,9 @@ function buildCard(term, index, icon) {
 function buildProdutosSection(produtos) {
   const cards = produtos.map(p => {
     const isHot = parseFloat(String(p.commission).replace('%','')) >= 50;
+    const origemBadge = p.oficial
+      ? '<span class="badge badge-oficial">⭐ Oficial</span>'
+      : '<span class="badge badge-custom">📌 Seu produto</span>';
     return `
       <div class="produto-card card-enter">
         <div class="produto-header">
@@ -254,6 +373,7 @@ function buildProdutosSection(produtos) {
           <div class="produto-meta">
             <span class="produto-nome">${escapeHtml(p.name)}</span>
             <div class="produto-badges">
+              ${origemBadge}
               <span class="badge badge-price">${escapeHtml(p.price)}</span>
               <span class="badge badge-commission">💰 ${escapeHtml(p.commission)} comissão</span>
               ${isHot ? '<span class="badge badge-hot">🔥 Em alta</span>' : ''}
@@ -265,7 +385,7 @@ function buildProdutosSection(produtos) {
           <a class="result-link produto-link" href="${escapeAttr(p.link)}" target="_blank" rel="noopener noreferrer">
             ${ICON_EXTERNAL} Abrir link de afiliado
           </a>
-          <button class="copy-btn" onclick="copyQuery('${escapeAttr(p.link)}', this)" title="Copiar link de afiliado">
+          <button class="copy-btn" onclick="copyQuery('${escapeAttr(p.link)}', this)" aria-label="Copiar link de afiliado" title="Copiar link de afiliado">
             ${ICON_COPY}
           </button>
         </div>
@@ -282,9 +402,17 @@ function buildProdutosSection(produtos) {
 // ─── Copiar todos os links ────────────────────────────────────────────────────
 function copyAllLinks() {
   if (!currentTerms.length) return;
-  const lines = currentTerms.map(t =>
+
+  const groupLines = currentTerms.map(t =>
     `${t.label}\nhttps://www.facebook.com/search/groups/?q=${encodeURIComponent(t.query)}`
   ).join('\n\n');
+
+  const produtos = getProdutosAfiliados(currentQuery);
+  const produtoLines = produtos.length
+    ? '\n\n--- Produto sugerido ---\n' + produtos.map(p => `${p.name}\n${p.link}`).join('\n\n')
+    : '';
+
+  const lines = groupLines + produtoLines;
 
   const btn = document.getElementById('btn-copy-all');
   navigator.clipboard.writeText(lines).then(() => {
@@ -297,13 +425,20 @@ function copyAllLinks() {
 // ─── Exportar .txt ────────────────────────────────────────────────────────────
 function exportLinks() {
   if (!currentTerms.length) return;
+
+  const produtos = getProdutosAfiliados(currentQuery);
+  const produtoBlock = produtos.length
+    ? ['--- Produto sugerido para esse nicho ---', ...produtos.map(p => `${p.name}\n${p.link}`)]
+    : [];
+
   const lines = [
     `Buscador de Grupos — Nicho: ${currentQuery}`,
     `Gerado em: ${new Date().toLocaleString('pt-BR')}`,
     '',
     ...currentTerms.map(t =>
       `${t.label}\nhttps://www.facebook.com/search/groups/?q=${encodeURIComponent(t.query)}`
-    )
+    ),
+    ...(produtoBlock.length ? ['', ...produtoBlock] : []),
   ].join('\n\n');
 
   const blob = new Blob([lines], { type: 'text/plain;charset=utf-8' });
@@ -323,12 +458,15 @@ function shareSearch() {
   });
 }
 
+// checkShareParam roda dentro do DOMContentLoaded, então o DOM já está pronto —
+// não precisamos mais de um setTimeout artificial para "esperar" os elementos existirem.
 function checkShareParam() {
   const params = new URLSearchParams(location.search);
   const q = params.get('q');
   if (q) {
     document.getElementById('query').value = q;
-    setTimeout(generate, 300);
+    toggleClearButton(true);
+    generate();
   }
 }
 
@@ -336,13 +474,13 @@ function checkShareParam() {
 function saveToHistory(query) {
   let history = getHistory();
   history = [query, ...history.filter(h => h !== query)].slice(0, 8);
-  localStorage.setItem('fb_search_history', JSON.stringify(history));
+  localStorage.setItem(KEYS.history, JSON.stringify(history));
   renderHistory();
 }
 
 function getHistory() {
-  try { return JSON.parse(localStorage.getItem('fb_search_history') || '[]'); }
-  catch { return []; }
+  // Filtra qualquer entrada que não seja string (proteção contra dado corrompido)
+  return readJsonArray(KEYS.history).filter(h => typeof h === 'string');
 }
 
 function renderHistory() {
@@ -359,20 +497,20 @@ function renderHistory() {
 }
 
 function clearHistory() {
-  localStorage.removeItem('fb_search_history');
+  localStorage.removeItem(KEYS.history);
   renderHistory();
 }
 
 // ─── Stats ────────────────────────────────────────────────────────────────────
 function loadStats() {
-  searchCount = parseInt(localStorage.getItem('fb_search_count') || '0');
-  openedCount = parseInt(localStorage.getItem('fb_opened_count') || '0');
+  searchCount = parseInt(localStorage.getItem(KEYS.searchCount) || '0', 10) || 0;
+  openedCount = parseInt(localStorage.getItem(KEYS.openedCount) || '0', 10) || 0;
   updateStatsUI();
 }
 
 function saveStats() {
-  localStorage.setItem('fb_search_count', searchCount);
-  localStorage.setItem('fb_opened_count', openedCount);
+  localStorage.setItem(KEYS.searchCount, String(searchCount));
+  localStorage.setItem(KEYS.openedCount, String(openedCount));
 }
 
 function trackOpen() {
@@ -421,16 +559,24 @@ function addProduto() {
     return;
   }
 
-  const produto = {
+  const produto = normalizeProduto({
     name: nome,
-    price: preco || '—',
-    commission: comissao || '—',
-    nichos: nichos.split(',').map(n => n.trim().toLowerCase()).filter(Boolean),
-    desc: desc || '',
+    price: preco,
+    commission: comissao,
+    nichos,
+    desc,
     link,
-  };
+  });
 
   const saved = getSavedProdutos();
+
+  // Limite de produtos salvos para evitar degradar a performance do filtro
+  // de busca (getProdutosAfiliados roda a cada generate()).
+  if (editingIndex === null && saved.length >= MAX_SAVED_PRODUTOS) {
+    feedback.textContent = `⚠️ Limite de ${MAX_SAVED_PRODUTOS} produtos atingido. Remova algum antes de adicionar outro.`;
+    feedback.className   = 'form-feedback error';
+    return;
+  }
 
   if (editingIndex !== null) {
     saved[editingIndex] = produto;
@@ -440,7 +586,7 @@ function addProduto() {
     feedback.textContent = '✅ Produto salvo!';
   }
 
-  localStorage.setItem('fb_produtos', JSON.stringify(saved));
+  localStorage.setItem(KEYS.produtos, JSON.stringify(saved));
   feedback.className = 'form-feedback success';
 
   resetProdutoForm();
@@ -482,15 +628,18 @@ function resetProdutoForm() {
   document.getElementById('btn-cancelar-edicao').style.display = 'none';
 }
 
+// Lê produtos salvos, descartando silenciosamente qualquer entrada corrompida
+// ou em formato inválido (ex: editada manualmente no DevTools).
 function getSavedProdutos() {
-  try { return JSON.parse(localStorage.getItem('fb_produtos') || '[]'); }
-  catch { return []; }
+  return readJsonArray(KEYS.produtos)
+    .map(normalizeProduto)
+    .filter(Boolean);
 }
 
 function deleteProduto(index) {
   const saved = getSavedProdutos();
   saved.splice(index, 1);
-  localStorage.setItem('fb_produtos', JSON.stringify(saved));
+  localStorage.setItem(KEYS.produtos, JSON.stringify(saved));
 
   // Se o item deletado era o que estava sendo editado, sai do modo edição.
   if (editingIndex === index) resetProdutoForm();
@@ -539,15 +688,25 @@ function getProdutosAfiliados(raw) {
 
 // ─── Copiar query ─────────────────────────────────────────────────────────────
 function copyQuery(text, btn) {
-  navigator.clipboard.writeText(text).then(() => {
+  const originalLabel = btn.getAttribute('aria-label') || btn.getAttribute('title') || 'Copiar';
+
+  const markCopied = () => {
     btn.classList.add('copied');
     btn.innerHTML = ICON_CHECK;
-    setTimeout(() => { btn.classList.remove('copied'); btn.innerHTML = ICON_COPY; }, 1800);
-  }).catch(() => {
+    btn.setAttribute('aria-label', 'Copiado!');
+    setTimeout(() => {
+      btn.classList.remove('copied');
+      btn.innerHTML = ICON_COPY;
+      btn.setAttribute('aria-label', originalLabel);
+    }, 1800);
+  };
+
+  navigator.clipboard.writeText(text).then(markCopied).catch(() => {
     const ta = document.createElement('textarea');
     ta.value = text; ta.style.position = 'fixed'; ta.style.opacity = '0';
     document.body.appendChild(ta); ta.select(); document.execCommand('copy');
     document.body.removeChild(ta);
+    markCopied();
   });
 }
 
@@ -557,6 +716,8 @@ function showToast(msg) {
   if (!toast) {
     toast = document.createElement('div');
     toast.id = 'toast';
+    toast.setAttribute('role', 'status');
+    toast.setAttribute('aria-live', 'polite');
     document.body.appendChild(toast);
   }
   toast.textContent = msg;

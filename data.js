@@ -35,6 +35,7 @@ const PRODUTOS_AFILIADOS = [
     commission: '50%',
     link: 'https://pay.cakto.com.br/66j55ge_889400?affiliate=QMKfYNwS',
     nichos: ['futebol', 'copa', 'esporte', 'fifa', 'world cup', 'figurinha', 'panini'],
+    oficial: true, // produto fixo do sistema, não editável/removível pelo usuário
   },
   // Adicione mais produtos aqui seguindo o mesmo padrão
 ];

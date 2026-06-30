@@ -210,7 +210,8 @@ body {
   cursor: pointer;
   transition: background var(--transition);
 }
-.autocomplete-list li:hover { background: var(--accent-bg); color: var(--accent-text); }
+.autocomplete-list li:hover,
+.autocomplete-list li.active { background: var(--accent-bg); color: var(--accent-text); }
 
 /* ─── Botão primário ── */
 .btn-primary {
@@ -314,6 +315,8 @@ body {
 .badge-price      { background: var(--accent-bg);   color: var(--accent-text);  }
 .badge-commission { background: var(--promo-icon-bg); color: var(--promo-text); }
 .badge-hot        { background: var(--hot-bg); color: var(--hot-text); }
+.badge-oficial    { background: var(--accent-bg); color: var(--accent-text); }
+.badge-custom     { background: var(--bg); color: var(--text-secondary); border: 1px solid var(--border); }
 
 /* ─── Query row ── */
 .result-query-row { display: flex; align-items: center; gap: 6px; margin-bottom: 6px; }
