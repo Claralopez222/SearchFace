@@ -109,7 +109,8 @@ function buildCard(term, index, icon) {
   const isPublic   = tipoKey === 'publico';
   const tipoLabel  = isPublic ? 'Público' : 'Privado';
   const badgeClass = isPublic ? 'badge-pub' : 'badge-pri';
-  const url = `https://www.facebook.com/groups/search/groups_home?q=${encodeURIComponent(term.query)}`;
+  const url = `https://www.facebook.com/groups/search/groups_home?q=${encodeURIComponent(term.query)}`;const FACEBOOK_FILTER = 'eyJncm91cHNfZmlsdGVyIjoie1wibmFtZVwiOlwiZ3JvdXBzXCJ9In0%3D';
+const url = `https://www.facebook.com/groups/search/?q=${encodeURIComponent(term.query)}&filters=${FACEBOOK_FILTER}`;
   const queryId    = `query-${index}`;
 
   return `
