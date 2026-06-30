@@ -2,12 +2,11 @@
 let activeFilters = ['publico', 'privado'];
 let debounceTimer  = null;
 
-// ─── Ícone externo reutilizado nos cards ──────────────────────────────────────
+// ─── Ícones reutilizados ──────────────────────────────────────────────────────
 const ICON_EXTERNAL = `<svg viewBox="0 0 24 24" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>`;
-
-const ICON_COPY = `<svg viewBox="0 0 24 24" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></svg>`;
-
-const ICON_CHECK = `<svg viewBox="0 0 24 24" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>`;
+const ICON_COPY     = `<svg viewBox="0 0 24 24" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></svg>`;
+const ICON_CHECK    = `<svg viewBox="0 0 24 24" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>`;
+const ICON_TAG      = `<svg viewBox="0 0 24 24" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2H2v10l9.29 9.29a1 1 0 0 0 1.41 0l7.3-7.3a1 1 0 0 0 0-1.41L12 2Z"/><path d="M7 7h.01"/></svg>`;
 
 // ─── Inicialização ────────────────────────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', () => {
@@ -34,7 +33,6 @@ function bindSearchInput() {
     }
   });
 
-  // Enquanto digita, atualiza com pequeno debounce
   input.addEventListener('input', () => {
     clearTimeout(debounceTimer);
     debounceTimer = setTimeout(() => {
@@ -58,7 +56,6 @@ function toggleFilter(el, val) {
     ? activeFilters.filter(f => f !== val)
     : [...activeFilters, val];
 
-  // Re-renderiza se já há resultados visíveis
   const query = document.getElementById('query').value.trim();
   if (query) generate();
 }
@@ -80,19 +77,30 @@ function generate() {
   emptyEl.style.display = 'none';
   section.style.display = 'block';
 
-  const terms = buildTerms(raw);
-  const icon  = getIcon(raw);
+  const terms    = buildTerms(raw);
+  const icon     = getIcon(raw);
+  const produtos = getProdutosAfiliados(raw);
 
-  // Fade-out rápido antes de trocar o conteúdo
-  container.style.opacity = '0';
+  container.style.opacity   = '0';
   container.style.transform = 'translateY(6px)';
 
   setTimeout(() => {
+    // Cards de grupos
     container.innerHTML = terms.map((t, i) => buildCard(t, i, icon)).join('');
+
+    // Seção de produtos afiliados (se houver match)
+    const prodSection = document.getElementById('produtos-section');
+    if (produtos.length > 0) {
+      prodSection.style.display = 'block';
+      prodSection.innerHTML     = buildProdutosSection(produtos);
+    } else {
+      prodSection.style.display = 'none';
+      prodSection.innerHTML     = '';
+    }
+
     countEl.textContent = `${terms.length} buscas geradas para "${raw}"`;
 
-    // Anima entrada dos cards com stagger
-    container.style.opacity = '1';
+    container.style.opacity   = '1';
     container.style.transform = 'translateY(0)';
 
     container.querySelectorAll('.result-card').forEach((card, i) => {
@@ -102,7 +110,36 @@ function generate() {
   }, 120);
 }
 
-// ─── Monta HTML de um card ────────────────────────────────────────────────────
+// ─── Seção de produtos afiliados ─────────────────────────────────────────────
+function buildProdutosSection(produtos) {
+  const cards = produtos.map(p => `
+    <div class="produto-card card-enter">
+      <div class="produto-header">
+        <div class="produto-icon" aria-hidden="true">${ICON_TAG}</div>
+        <div class="produto-meta">
+          <span class="produto-nome">${escapeHtml(p.name)}</span>
+          <div class="produto-badges">
+            <span class="badge badge-price">${escapeHtml(p.price)}</span>
+            <span class="badge badge-commission">💰 ${escapeHtml(p.commission)} comissão</span>
+          </div>
+        </div>
+      </div>
+      <p class="produto-desc">${escapeHtml(p.desc)}</p>
+      <a class="result-link produto-link" href="${escapeAttr(p.link)}" target="_blank" rel="noopener noreferrer">
+        ${ICON_EXTERNAL} Abrir link de afiliado
+      </a>
+    </div>
+  `).join('');
+
+  return `
+    <div class="produtos-header">
+      <span class="label">🎯 Produto para promover nesses grupos</span>
+    </div>
+    ${cards}
+  `;
+}
+
+// ─── Monta HTML de um card de grupo ──────────────────────────────────────────
 function buildCard(term, index, icon) {
   const preferred  = index % 2 === 0 ? 'publico' : 'privado';
   const tipoKey    = activeFilters.includes(preferred) ? preferred : activeFilters[0];
@@ -110,7 +147,6 @@ function buildCard(term, index, icon) {
   const tipoLabel  = isPublic ? 'Público' : 'Privado';
   const badgeClass = isPublic ? 'badge-pub' : 'badge-pri';
   const url        = `https://www.facebook.com/search/groups/?q=${encodeURIComponent(term.query)}`;
-  const queryId    = `query-${index}`;
 
   return `
     <div class="result-card">
@@ -121,7 +157,7 @@ function buildCard(term, index, icon) {
           <span class="badge ${badgeClass}">${tipoLabel}</span>
         </div>
         <div class="result-query-row">
-          <code class="result-query" id="${queryId}">"${escapeHtml(term.query)}"</code>
+          <code class="result-query">"${escapeHtml(term.query)}"</code>
           <button class="copy-btn" onclick="copyQuery('${escapeAttr(term.query)}', this)" aria-label="Copiar termo de busca" title="Copiar">
             ${ICON_COPY}
           </button>
@@ -145,11 +181,10 @@ function copyQuery(text, btn) {
       btn.innerHTML = ICON_COPY;
     }, 1800);
   }).catch(() => {
-    // Fallback para browsers sem clipboard API
     const ta = document.createElement('textarea');
     ta.value = text;
     ta.style.position = 'fixed';
-    ta.style.opacity = '0';
+    ta.style.opacity  = '0';
     document.body.appendChild(ta);
     ta.select();
     document.execCommand('copy');
@@ -163,9 +198,13 @@ function sanitize(str) {
 }
 
 function escapeHtml(str) {
-  return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  return String(str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
 }
 
 function escapeAttr(str) {
-  return str.replace(/'/g, "\\'");
+  return String(str).replace(/'/g, "\\'");
 }

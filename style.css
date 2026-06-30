@@ -25,6 +25,11 @@
   --warning-bg:     #fff8e1;
   --warning-text:   #8a6400;
 
+  --promo-bg:       #fff9f0;
+  --promo-border:   #f5c97a;
+  --promo-text:     #92500a;
+  --promo-icon-bg:  #fef3e2;
+
   --radius:         10px;
   --radius-lg:      14px;
 
@@ -345,8 +350,10 @@ body {
   letter-spacing: 0.02em;
 }
 
-.badge-pub { background: var(--success-bg); color: var(--success-text); }
-.badge-pri { background: var(--warning-bg); color: var(--warning-text); }
+.badge-pub        { background: var(--success-bg);  color: var(--success-text); }
+.badge-pri        { background: var(--warning-bg);  color: var(--warning-text); }
+.badge-price      { background: var(--accent-bg);   color: var(--accent-text);  }
+.badge-commission { background: var(--promo-icon-bg); color: var(--promo-text); }
 
 /* ─── Linha da query com botão de copiar ─────────────────────────────────────── */
 .result-query-row {
@@ -455,6 +462,93 @@ body {
   color: var(--text-secondary);
 }
 
+/* ─── Seção de produtos afiliados ────────────────────────────────────────────── */
+#produtos-section {
+  margin-top: 1.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.produtos-header {
+  margin-bottom: 4px;
+}
+
+.produto-card {
+  background: var(--promo-bg);
+  border: 1px solid var(--promo-border);
+  border-radius: var(--radius-lg);
+  padding: 1.1rem 1.25rem;
+  animation: cardIn 0.28s ease forwards;
+  transition: box-shadow var(--transition), transform var(--transition);
+}
+
+.produto-card:hover {
+  box-shadow: 0 4px 14px rgba(245,201,122,0.25);
+  transform: translateY(-1px);
+}
+
+.produto-header {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  margin-bottom: 10px;
+}
+
+.produto-icon {
+  width: 40px;
+  height: 40px;
+  background: var(--promo-icon-bg);
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.produto-icon svg {
+  width: 18px;
+  height: 18px;
+  stroke: var(--promo-text);
+  fill: none;
+}
+
+.produto-meta {
+  flex: 1;
+  min-width: 0;
+}
+
+.produto-nome {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-primary);
+  display: block;
+  margin-bottom: 6px;
+}
+
+.produto-badges {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.produto-desc {
+  font-size: 13px;
+  color: var(--text-secondary);
+  line-height: 1.5;
+  margin-bottom: 12px;
+}
+
+.produto-link {
+  color: var(--promo-text);
+  border-color: var(--promo-border);
+}
+
+.produto-link:hover {
+  background: var(--promo-icon-bg);
+  box-shadow: 0 2px 6px rgba(245,201,122,0.20);
+}
+
 /* ─── Estado vazio ───────────────────────────────────────────────────────────── */
 .empty {
   text-align: center;
@@ -496,6 +590,7 @@ footer {
   .hero-icon           { width: 48px; height: 48px; }
   .result-card         { padding: 1rem; }
   .result-query        { max-width: 180px; }
+  .produto-card        { padding: 1rem; }
 }
 
 /* ─── Acessibilidade: foco visível ───────────────────────────────────────────── */

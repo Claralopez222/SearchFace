@@ -20,7 +20,32 @@ const NICHOS = [
   { label: 'Espiritualidade',   query: 'espiritualidade autoconhecimento meditação' },
   { label: 'Jurídico',          query: 'direito jurídico advocacia' },
   { label: 'Música',            query: 'música instrumentos produção musical' },
+  { label: 'Futebol',           query: 'futebol copa do mundo' },
 ];
+
+// ─── Produtos afiliados (Cakto) ───────────────────────────────────────────────
+// Para adicionar novos produtos:
+// { name, desc, price, commission, link, nichos: ['nicho1', 'nicho2'] }
+// O campo nichos deve conter termos que serão comparados ao query digitado.
+const PRODUTOS_AFILIADOS = [
+  {
+    name: 'Figuirinhas Copa do Mundo 2026',
+    desc: 'Álbum digital de figurinhas da Copa do Mundo 2026. Alta demanda — ótimo para promover em grupos de futebol e esportes.',
+    price: 'R$ 14,99',
+    commission: '50%',
+    link: 'https://pay.cakto.com.br/66j55ge_889400?affiliate=QMKfYNwS',
+    nichos: ['futebol', 'copa', 'esporte', 'fifa', 'world cup', 'figurinha', 'panini'],
+  },
+  // Adicione mais produtos aqui seguindo o mesmo padrão
+];
+
+// ─── Retorna produtos afiliados relevantes para o nicho digitado ──────────────
+function getProdutosAfiliados(raw) {
+  const query = raw.toLowerCase();
+  return PRODUTOS_AFILIADOS.filter(({ nichos }) =>
+    nichos.some(n => query.includes(n) || n.includes(query))
+  );
+}
 
 // ─── Termos de busca por nicho ───────────────────────────────────────────────
 function buildTerms(raw) {
@@ -153,6 +178,10 @@ const ICON_MAP = [
   {
     pattern: /música|instrumento|banda|produção musical|cantor/i,
     svg: `<svg viewBox="0 0 24 24" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>`,
+  },
+  {
+    pattern: /futebol|copa|fifa|bola|campeonato|figurinha/i,
+    svg: `<svg viewBox="0 0 24 24" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/><path d="M2 12h20"/></svg>`,
   },
 ];
 
